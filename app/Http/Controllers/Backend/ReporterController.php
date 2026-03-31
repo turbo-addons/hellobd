@@ -96,6 +96,9 @@ class ReporterController extends Controller
             $validated['location_updated_at'] = now();
         }
         
+        // Ensure is_active is set to true by default
+        $validated['is_active'] = $validated['is_active'] ?? true;
+        
         $reporter = Reporter::create($validated);
 
         if ($request->hasFile('photo')) {
