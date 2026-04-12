@@ -69,6 +69,11 @@ Route::prefix('frontend')->group(function () {
     Route::get('/push/test', [PushNotificationController::class, 'sendTestNotification']);
     Route::post('/push/send-breaking-news', [PushNotificationController::class, 'sendBreakingNews']);
 
+    // Get post by slug with next 25 posts
+    Route::get('/post-with-next', [\App\Http\Controllers\Api\FrontendApiController::class, 'getPostWithNext']);
+    
+    // Update post published date by slug
+    Route::post('/update-published-date', [\App\Http\Controllers\Api\FrontendApiController::class, 'updatePublishedDate']);
   
 });
 

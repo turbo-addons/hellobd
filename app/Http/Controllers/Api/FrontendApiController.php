@@ -1790,4 +1790,111 @@ class FrontendApiController extends Controller
         return response()->json($ads);
     }
 
+    /**
+     * Get post by slug with next 25 posts
+     * Returns the searched post + 25 posts after it ordered by published_at
+     */
+    public function getPostWithNext(Request $request)
+    {
+        $slug = $request->input('slug');
+        
+        if (!$slug) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Slug parameter is required'
+            ], 400);
+        }
+
+        // Find the post by slug
+        $post = Post::where('slug', $slug)
+            ->where('status', 'published')
+            ->first();
+
+        if (!$post) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Post not found'
+            ], 404);
+        }
+
+        // Get 25 posts after this post based on published_at
+        $nextPosts = Post::select(['id', 'title', 'slug', 'published_at', 'created_at'])
+            ->where('status', 'published')
+            ->where(function($query) use ($post) {
+                $query->where('published_at', '<', $post->published_at)
+                    ->orWhere(function($q) use ($post) {
+                        $q->where('published_at', '=', $post->published_at)
+                          ->where('id', '<', $post->id);
+                    });
+            })
+            ->orderBy('published_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->take(25)
+            ->get();
+
+        // Combine the searched post with next 25 posts
+        $allPosts = collect([$post])->merge($nextPosts);
+
+        // Format the response
+        $formattedPosts = $allPosts->map(function($p) {
+            return [
+                'id' => $p->id,
+                'title' => $p->title,
+                'slug' => $p->slug,
+                'published_at' => $p->published_at ? $p->published_at->format('Y-m-d H:i:s') : null,
+                'created_at' => $p->created_at->format('Y-m-d H:i:s'),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'total' => $formattedPosts->count(),
+            'data' => $formattedPosts
+        ]);
+    }
+
+    /**
+     * Update post published_at date by slug
+     */
+    public function updatePublishedDate(Request $request)
+    {
+        $validated = $request->validate([
+            'slug' => 'required|string',
+            'published_at' => 'required|string'
+        ]);
+
+        $post = Post::where('slug', $validated['slug'])->first();
+
+        if (!$post) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Post not found with slug: ' . $validated['slug']
+            ], 404);
+        }
+
+        try {
+            $oldDate = $post->published_at;
+            $post->published_at = $validated['published_at'];
+            $post->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Published date updated successfully',
+                'data' => [
+                    'id' => $post->id,
+                    'slug' => $post->slug,
+                    'title' => $post->title,
+                    'old_published_at' => $oldDate ? $oldDate->format('Y-m-d H:i:sP') : null,
+                    'new_published_at' => $post->published_at->format('Y-m-d H:i:sP')
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid date format. Please use format like: 2026-04-05 15:55:00+00',
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
 }
